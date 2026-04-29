@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>PPT AI Chatbot</title>
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f0f13; color: #e8e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .header { padding: 12px 16px; background: #1a1a24; border-bottom: 1px solid #2e2e42; display: flex; align-items: center; gap: 10px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #7c6af7; box-shadow: 0 0 8px #7c6af7; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+    .header-title { font-size: 14px; font-weight: 700; color: #a78bfa; }
+    .header-sub { font-size: 10px; color: #6b6b8a; margin-left: auto; }
+    .mode-bar { display: flex; gap: 6px; padding: 8px 12px; background: #1a1a24; border-bottom: 1px solid #2e2e42; }
+    .mode-btn { flex: 1; padding: 5px 4px; font-size: 11px; border: 1px solid #2e2e42; border-radius: 6px; background: transparent; color: #6b6b8a; cursor: pointer; transition: all 0.2s; }
+    .mode-btn.active { background: #7c6af7; border-color: #7c6af7; color: #fff; }
+    .mode-btn:hover:not(.active) { border-color: #7c6af7; color: #a78bfa; }
+    .chat-area { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .msg { display: flex; flex-direction: column; gap: 3px; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(5px);} to{opacity:1;transform:translateY(0);} }
+    .msg.user { align-items: flex-end; }
+    .msg.ai { align-items: flex-start; }
+    .msg-label { font-size: 9px; color: #6b6b8a; padding: 0 4px; }
+    .bubble { max-width: 90%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; word-break: break-word; }
+    .msg.user .bubble { background: #2d2b4e; border: 1px solid rgba(124,106,247,0.3); border-bottom-right-radius: 3px; color: #d4d0ff; }
+    .msg.ai .bubble { background: #1e2235; border: 1px solid #2e2e42; border-bottom-left-radius: 3px; }
+    .action-btns { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .action-btn { font-size: 10px; padding: 4px 9px; border-radius: 5px; border: 1px solid #7c6af7; background: transparent; color: #a78bfa; cursor: pointer; transition: all 0.2s; }
+    .action-btn:hover { background: #7c6af7; color: #fff; }
+    .typing-indicator { display: flex; align-items: center; gap: 4px; padding: 10px 12px; background: #1e2235; border: 1px solid #2e2e42; border-radius: 12px; border-bottom-left-radius: 3px; width: fit-content; }
+    .typing-dot { width: 6px; height: 6px; background: #7c6af7; border-radius: 50%; animation: typing 1.2s infinite; }
+    .typing-dot:nth-child(2){animation-delay:0.2s;} .typing-dot:nth-child(3){animation-delay:0.4s;}
+    @keyframes typing { 0%,60%,100%{transform:translateY(0);opacity:0.5;} 30%{transform:translateY(-5px);opacity:1;} }
+    .input-area { padding: 10px 12px; background: #1a1a24; border-top: 1px solid #2e2e42; }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; }
+    textarea { flex: 1; background: #22222f; border: 1px solid #2e2e42; border-radius: 10px; color: #e8e8f0; font-family: 'Segoe UI', sans-serif; font-size: 13px; padding: 8px 12px; resize: none; min-height: 38px; max-height: 100px; outline: none; transition: border-color 0.2s; }
+    textarea:focus { border-color: #7c6af7; }
+    textarea::placeholder { color: #6b6b8a; }
+    .send-btn { width: 38px; height: 38px; border-radius: 10px; background: #7c6af7; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+    .send-btn:hover { background: #a78bfa; transform: scale(1.05); }
+    .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+    .send-btn svg { width: 16px; height: 16px; fill: #fff; }
+    .quick-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+    .quick-btn { font-size: 10px; padding: 3px 8px; border-radius: 4px; border: 1px solid #2e2e42; background: transparent; color: #6b6b8a; cursor: pointer; transition: all 0.15s; }
+    .quick-btn:hover { border-color: #7c6af7; color: #a78bfa; }
+    .status-bar { padding: 4px 12px; font-size: 9px; color: #6b6b8a; background: #0f0f13; border-top: 1px solid #2e2e42; display: flex; align-items: center; gap: 6px; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #34d399; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="dot"></div>
+  <div class="header-title">PPT · AI Chat</div>
+  <div class="header-sub">Groq / LLaMA3</div>
+</div>
+
+<div class="mode-bar">
+  <button class="mode-btn active" onclick="setMode('chat')" id="mode-chat">💬 Chat</button>
+  <button class="mode-btn" onclick="setMode('slide')" id="mode-slide">➕ Slide</button>
+  <button class="mode-btn" onclick="setMode('edit')" id="mode-edit">✏️ Edit</button>
+</div>
+
+<div class="chat-area" id="chatArea">
+  <div class="msg ai">
+    <div class="msg-label">AI Assistant</div>
+    <div class="bubble">
+      Assalam o Alaikum! 👋 Main aapka <strong>PPT AI Assistant</strong> hoon.<br><br>
+      Kya karna chahte hain?
+      <div class="action-btns">
+        <button class="action-btn" onclick="fillInput('Ek nayi slide banao AI ke future par')">➕ Slide banao</button>
+        <button class="action-btn" onclick="fillInput('5 presentation topics suggest karo')">💡 Ideas do</button>
+        <button class="action-btn" onclick="fillInput('Meri slide ka content improve karo: ')">✨ Improve karo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="input-area">
+  <div class="input-row">
+    <textarea id="userInput" placeholder="Kuch bhi poochein..." rows="1"
+      onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+      <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+    </button>
+  </div>
+  <div class="quick-actions">
+    <button class="quick-btn" onclick="fillInput('Nayi slide banao: ')">➕ Slide</button>
+    <button class="quick-btn" onclick="fillInput('5 ideas do: ')">💡 Ideas</button>
+    <button class="quick-btn" onclick="fillInput('Improve karo: ')">✨ Improve</button>
+    <button class="quick-btn" onclick="fillInput('Summary banao: ')">📝 Summary</button>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">Ready</span>
+</div>
+
+<script>
+
+ 
+  let currentMode = "chat";
+  let conversationHistory = [];
+  let lastAIResponse = "";
+
+  Office.onReady(() => {
+    setStatus("Ready · PPT connected", true);
+  });
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('mode-' + mode).classList.add('active');
+    const hints = {
+      chat: "Kuch bhi poochein...",
+      slide: "Slide ka topic likho...",
+      edit: "Kya edit karna hai?"
+    };
+    document.getElementById('userInput').placeholder = hints[mode];
+  }
+
+  function fillInput(text) {
+    const inp = document.getElementById('userInput');
+    inp.value = text;
+    inp.focus();
+    autoResize(inp);
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+  }
+
+  function setStatus(text, ok = true) {
+    document.getElementById('statusText').textContent = text;
+    document.getElementById('statusDot').style.background = ok ? '#34d399' : '#f87171';
+  }
+
+  function addMessage(role, content, withActions = false) {
+    const area = document.getElementById('chatArea');
+    const msg = document.createElement('div');
+    msg.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = role === 'user' ? 'Aap' : 'AI Assistant';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = content.replace(/\n/g, '<br>');
+    if (withActions && role !== 'user') {
+      const btnRow = document.createElement('div');
+      btnRow.className = 'action-btns';
+      btnRow.innerHTML = `
+        <button class="action-btn" onclick="addSlideFromLastResponse()">➕ PPT mein add karo</button>
+        <button class="action-btn" onclick="copyLastResponse()">📋 Copy</button>
+      `;
+      bubble.appendChild(btnRow);
+    }
+    msg.appendChild(label);
+    msg.appendChild(bubble);
+    area.appendChild(msg);
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function addTypingIndicator() {
+    const area = document.getElementById('chatArea');
+    const msg = document.createElement('div');
+    msg.className = 'msg ai';
+    msg.id = 'typing';
+    const label = document.createElement('div');
+    label.className = 'msg-label';
+    label.textContent = 'AI Assistant';
+    const ind = document.createElement('div');
+    ind.className = 'typing-indicator';
+    ind.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+    msg.appendChild(label);
+    msg.appendChild(ind);
+    area.appendChild(msg);
+    area.scrollTop = area.scrollHeight;
+  }
+
+  function removeTypingIndicator() {
+    const el = document.getElementById('typing');
+    if (el) el.remove();
+  }
+
+  async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const userText = input.value.trim();
+    if (!userText) return;
+
+    input.value = '';
+    input.style.height = 'auto';
+    sendBtn.disabled = true;
+    addMessage('user', userText);
+
+    let systemPrompt = "You are a helpful PowerPoint assistant. Respond in same language as user (Urdu/English mix ok). Be concise.";
+    if (currentMode === 'slide') {
+      systemPrompt += "\nUser wants a slide. Reply ONLY:\nTITLE: [title]\nCONTENT: [content with - bullets]";
+    } else if (currentMode === 'edit') {
+      systemPrompt += "\nUser wants to improve content. Give specific suggestions.";
+    }
+
+    conversationHistory.push({ role: "user", content: userText });
+    if (conversationHistory.length > 10) conversationHistory = conversationHistory.slice(-10);
+
+    addTypingIndicator();
+    setStatus("Soch raha hoon...", true);
+
+    try {
+      const response = await fetch("https://groq-proxy.mahammnadeem00000.workers.dev/", {
+        method: "POST",
+        headers: {
+        
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...conversationHistory
+          ],
+          temperature: 0.7,
+          max_tokens: 800
+        })
+      });
+
+      const data = await response.json();
+      if (!data.choices || !data.choices.length) {
+        throw new Error(data.error?.message || "API se response nahi aaya");
+      }
+
+      const aiReply = data.choices[0].message.content;
+      lastAIResponse = aiReply;
+      conversationHistory.push({ role: "assistant", content: aiReply });
+      removeTypingIndicator();
+
+      if (currentMode === 'slide') {
+        addMessage('assistant', aiReply, true);
+        await addSlideFromText(aiReply);
+        setStatus("Slide add ho gayi!", true);
+      } else {
+        addMessage('assistant', aiReply, true);
+        setStatus("Ready", true);
+      }
+
+    } catch (err) {
+      removeTypingIndicator();
+      addMessage('assistant', "❌ Error: " + err.message + "\n\nGroq API key check karein.");
+      setStatus("Error!", false);
+    }
+
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  async function addSlideFromText(text) {
+    const titleMatch = text.match(/TITLE:\s*(.+)/i);
+    const contentMatch = text.match(/CONTENT:\s*([\s\S]+)/i);
+    const slideTitle = titleMatch ? titleMatch[1].trim() : "AI Slide";
+    const slideContent = contentMatch ? contentMatch[1].trim() : text;
+
+    try {
+      await PowerPoint.run(async (context) => {
+        context.presentation.slides.add();
+        await context.sync();
+        const slides = context.presentation.slides;
+        slides.load("items");
+        await context.sync();
+        const newSlide = slides.items[slides.items.length - 1];
+        newSlide.load("shapes");
+        await context.sync();
+        const shapes = newSlide.shapes;
+        shapes.load("items");
+        await context.sync();
+        if (shapes.items.length >= 2) {
+          shapes.items[0].textFrame.textRange.text = slideTitle;
+          shapes.items[1].textFrame.textRange.text = slideContent;
+        } else if (shapes.items.length === 1) {
+          shapes.items[0].textFrame.textRange.text = slideTitle + "\n\n" + slideContent;
+        } else {
+          newSlide.shapes.addTextBox(slideTitle, { left: 50, top: 30, width: 600, height: 70 });
+          newSlide.shapes.addTextBox(slideContent, { left: 50, top: 120, width: 600, height: 320 });
+        }
+        await context.sync();
+      });
+    } catch (err) {
+      addMessage('assistant', "⚠️ Slide error: " + err.message);
+    }
+  }
+
+  async function addSlideFromLastResponse() {
+    if (!lastAIResponse) return;
+    addMessage('assistant', '⏳ Slide add ho rahi hai...');
+    await addSlideFromText(lastAIResponse);
+    addMessage('assistant', '✅ Slide successfully add ho gayi!');
+    setStatus("Slide added!", true);
+  }
+
+  function copyLastResponse() {
+    if (!lastAIResponse) return;
+    navigator.clipboard.writeText(lastAIResponse).then(() => setStatus("Copied!", true));
+  }
+
+</script>
+</body>
+</html>
