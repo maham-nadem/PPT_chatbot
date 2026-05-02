@@ -1,0 +1,53 @@
+name: taskpane
+description: Create a new snippet from a blank template.
+host: POWERPOINT
+api_set: {}
+script:
+  content: "Office.onReady(() => {\r\n  addMsg('sys', '✅ Connected to PowerPoint!');\r\n  document.getElementById('send').addEventListener('click', sendMsg);\r\n  document.getElementById('msg').addEventListener('keydown', (e) => {\r\n    if (e.key === 'Enter') sendMsg();\r\n  });\r\n});\r\n\r\nfunction addMsg(type, text) {\r\n  const chat = document.getElementById('chat');\r\n  const div = document.createElement('div');\r\n  div.className = 'msg ' + type;\r\n  div.innerHTML = text.replace(/\\n/g, '<br>');\r\n  chat.appendChild(div);\r\n  chat.scrollTop = chat.scrollHeight;\r\n  return div;\r\n}\r\n\r\nasync function sendMsg() {\r\n  const msgEl = document.getElementById('msg');\r\n  const msg = msgEl.value.trim();\r\n  if (!msg) return;\r\n  addMsg('user', '👤 ' + msg);\r\n  msgEl.value = '';\r\n  const thinking = addMsg('sys', '⏳ Thinking...');\r\n\r\n  try {\r\n    const res = await fetch(\"https://groq-proxy.mahammnadeem00000.workers.dev/\", {\r\n      method: \"POST\",\r\n      headers: { \"Content-Type\": \"application/json\" },\r\n      body: JSON.stringify({\r\n        model: \"llama-3.1-8b-instant\",\r\n        messages: [\r\n          {\r\n            role: \"system\",\r\n            content: `You are PowerPoint assistant. Always English.\r\nWhen user wants slide reply ONLY:\r\nACTION: CREATE_SLIDE\r\nTITLE: [title]\r\nCONTENT: [bullets with -]\r\nBACKGROUND: [blue/red/green/yellow/purple/white/none]\r\n\r\nWhen user wants background change reply ONLY:\r\nACTION: CHANGE_BACKGROUND\r\nCOLOR: [color]\r\n\r\nOtherwise answer normally.`\r\n          },\r\n          { role: \"user\", content: msg }\r\n        ],\r\n        max_tokens: 500\r\n      })\r\n    });\r\n\r\n    const data = await res.json();\r\n    thinking.remove();\r\n\r\n    if (!data.choices) {\r\n      addMsg('err', '❌ ' + JSON.stringify(data.error));\r\n      return;\r\n    }\r\n\r\n    const reply = data.choices[0].message.content.trim();\r\n    addMsg('ai', '🤖 ' + reply);\r\n\r\n    const action = reply.match(/ACTION:\\s*(\\w+)/i) ?.[1] ?.toUpperCase();\r\n\r\n    if (action === 'CREATE_SLIDE') {\r\n      const title = reply.match(/TITLE:\\s*(.+)/i) ?.[1] ?.trim() || 'New Slide';\r\n      const content = reply.match(/CONTENT:\\s*([\\s\\S]+?)(?=BACKGROUND:|$)/i) ?.[1] ?.trim() || '';\r\n      const bg = reply.match(/BACKGROUND:\\s*(\\w+)/i) ?.[1] ?.trim().toLowerCase() || 'none';\r\n      const making = addMsg('sys', '➕ Creating slide...');\r\n\r\n      try {\r\n        await PowerPoint.run(async (ctx) => {\r\n          ctx.presentation.slides.add();\r\n          await ctx.sync();\r\n          const slides = ctx.presentation.slides;\r\n          slides.load(\"items\");\r\n          await ctx.sync();\r\n          const slide = slides.items[slides.items.length - 1];\r\n\r\n          slide.load(\"shapes\");\r\n          await ctx.sync();\r\n          slide.shapes.load(\"items\");\r\n          await ctx.sync();\r\n          const shapes = slide.shapes.items;\r\n\r\n          if (shapes.length >= 2) {\r\n            shapes[0].textFrame.textRange.text = title;\r\n            shapes[1].textFrame.textRange.text = content;\r\n          } else if (shapes.length === 1) {\r\n            shapes[0].textFrame.textRange.text = title + '\\n\\n' + content;\r\n          } else {\r\n            slide.shapes.addTextBox(title, { left: 50, top: 30, width: 600, height: 80 });\r\n            slide.shapes.addTextBox(content, { left: 50, top: 130, width: 600, height: 300 });\r\n          }\r\n          await ctx.sync();\r\n        });\r\n        making.remove();\r\n        addMsg('sys', '✅ Slide created in PowerPoint!');\r\n      } catch (e) {\r\n        making.remove();\r\n        addMsg('err', '⚠️ ' + e.message);\r\n      }\r\n\r\n    } else if (action === 'CHANGE_BACKGROUND') {\r\n      const color = reply.match(/COLOR:\\s*(\\w+)/i) ?.[1] ?.toLowerCase() || 'blue';\r\n      const making = addMsg('sys', '🎨 Changing background...');\r\n      try {\r\n        await PowerPoint.run(async (ctx) => {\r\n          const slides = ctx.presentation.slides;\r\n          slides.load(\"items\");\r\n          await ctx.sync();\r\n          const slide = slides.items[slides.items.length - 1];\r\n          const colors = {\r\n            blue: '0070C0', red: 'FF0000', green: '00B050',\r\n            yellow: 'FFD700', purple: '7030A0', black: '000000',\r\n            white: 'FFFFFF', orange: 'FF6600', pink: 'FF69B4'\r\n          };\r\n          slide.background.fill.setSolidColor(colors[color] || '0070C0');\r\n          await ctx.sync();\r\n        });\r\n        making.remove();\r\n        addMsg('sys', '✅ Background changed to ' + color + '!');\r\n      } catch (e) {\r\n        making.remove();\r\n        addMsg('err', '⚠️ ' + e.message);\r\n      }\r\n    }\r\n\r\n  } catch (err) {\r\n    thinking.remove();\r\n    addMsg('err', '❌ ' + err.message);\r\n  }\r\n}"
+  language: typescript
+template:
+  content: "<div id=\"header\">🤖 PPT AI Assistant</div>\r\n<div id=\"chat\"></div>\r\n<input id=\"msg\" placeholder=\"make a slide about AI...\"/>\r\n<button id=\"send\">Send ➤</button>"
+  language: html
+style:
+  content: >-
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Segoe UI; }
+
+    body { background: #1e1e2e; color: #cdd6f4; height: 100vh; display: flex;
+    flex-direction: column; }
+
+    #header { background: #313244; padding: 12px; font-weight: 700; color:
+    #cba6f7; font-size: 15px; }
+
+    #chat { flex: 1; overflow-y: auto; padding: 12px; display: flex;
+    flex-direction: column; gap: 8px; }
+
+    .msg { padding: 10px; border-radius: 10px; font-size: 13px; max-width: 90%;
+    }
+
+    .user { background: #45475a; align-self: flex-end; }
+
+    .ai { background: #313244; align-self: flex-start; border-left: 3px solid
+    #cba6f7; }
+
+    .sys { background: #1e3a2e; align-self: center; font-size: 11px; color:
+    #a6e3a1; border-radius: 20px; padding: 4px 12px; }
+
+    .err { background: #3a1e1e; align-self: center; font-size: 11px; color:
+    #f38ba8; border-radius: 20px; padding: 4px 12px; }
+
+    #msg { background: #45475a; border: 1px solid #585b70; border-radius: 20px;
+    padding: 9px 16px; color: #cdd6f4; font-size: 13px; outline: none; margin:
+    8px; }
+
+    #send { background: #cba6f7; border: none; color: #1e1e2e; padding: 9px
+    20px; border-radius: 20px; cursor: pointer; font-weight: 700; margin: 0 8px
+    8px; }
+  language: css
+libraries: >-
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+
+  https://cors-anywhere.herokuapp.com
+
+  https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/master/types/office-js/index.d.ts
+
+  @microsoft/office-js
